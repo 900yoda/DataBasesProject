@@ -1,0 +1,3 @@
+add a file - git add [file/foldername]
+commit - git commit -m "[message goes here]"
+push new stuff - git push origin master
