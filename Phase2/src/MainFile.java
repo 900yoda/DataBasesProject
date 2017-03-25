@@ -1,6 +1,10 @@
 import java.util.Scanner;
 //the file is modified
 import java.sql.*;
+import java.util.HashSet;
+import java.util.Set;
+
+
 
 class Display{
 	Page page;
@@ -19,13 +23,15 @@ class PageErrors{
 	public void IntegerError(){
 		System.out.println("\nPlease enter an integer\n");
 	}
+	public void DoubleError(){
+		System.out.println("\nPlease enter a double\n");
+	}
 }
 
 class Page{
 	protected static Scanner input;
 	protected static PageErrors errors;
 	protected static String user;
-	protected static Connector conn;
 	
 	public Page(){
 		input = new Scanner(System.in);
@@ -57,6 +63,7 @@ class WelcomePage extends Page{
 		
 		catch(Exception e){
 			errors.IntegerError();
+			input.nextLine();
 			return;
 		}
 		
@@ -82,12 +89,13 @@ class WelcomePage extends Page{
 
 class LoginPage extends Page{
 	public void Action(Display display){
-		String username;
+		String username = "";
 		String password;
-		ResultSet rs;
+		
 		int choice = 1;
 		try{
-			conn = new Connector();
+			Connector conn = new Connector();
+			ResultSet rs = null;
 			boolean message = false;
 			do{
 				if(message){
@@ -109,15 +117,17 @@ class LoginPage extends Page{
 				
 				rs=conn.stmt.executeQuery("Select Users.password from Users where Users.username = '"+username+"';");
 				message = true;
-			}while(!rs.next() || !rs.getString(0).equals(password));
-
+			}while(!rs.next() || !rs.getString(1).equals(password));
+			
+			rs.close();
 	   		conn.closeConnection();
 		}
 
 		catch(Exception e){
-			
+			e.printStackTrace();
 		}
 		
+		user = username;
 		SwitchPage(choice, display);
 	}
 	
@@ -150,14 +160,15 @@ class CreateNewAccountPage extends Page{
 		firstName = input.nextLine();
 		System.out.print("Last Name:   ");
 		lastName = input.nextLine();
-		System.out.print("Address (Format- [house number] [street name] [City name],[State name] [zip code]):   ");
+		System.out.print("Address (Format- [house number] [street name] [City name],[State full name] [zip code]):   ");
 		address = input.nextLine();
 		System.out.print("Phone Number:   ");
 		phoneNumber = input.nextLine();
 		
-		ResultSet rs;
+		
 		try{
-			conn = new Connector();
+			Connector conn = new Connector();
+			ResultSet rs = null;
 			boolean message = false;
 			do{
 				if(message){
@@ -169,7 +180,8 @@ class CreateNewAccountPage extends Page{
        		 	rs=conn.stmt.executeQuery("Select * from Users where Users.username = '"+userName+"';");
 				message = true;
 			}while(userName.equals("") || rs.next());
-
+			
+			rs.close();
 			message = false;
 			do{
 				if(message){
@@ -235,6 +247,7 @@ class MainPage extends Page{
 		
 		catch(Exception e){
 			errors.IntegerError();
+			input.nextLine();
 			return;
 		}
 		
@@ -302,7 +315,245 @@ class ReservePage extends Page{
 
 class NewTHPage extends Page{
 	public void Action(Display display){
+		System.out.println("1. Add New Home");
+		System.out.println("2. Update Home");
+		System.out.println("3. Go back");
+		System.out.println("4. Quit");
+		System.out.print("Please enter corrisponding number:  ");
 		
+		int choice = 0;
+		try{
+			choice = input.nextInt();
+		}
+		
+		catch(Exception e){
+			errors.IntegerError();
+			input.nextLine();
+			return;
+		}
+		
+		SwitchPage(choice, display);
+	}
+	
+	private void SwitchPage(int choice, Display display){
+		switch(choice){
+		case 1:
+			display.page = new AddNewHomePage();
+			break;
+		case 2:
+			display.page = new UpdateHomePage();
+			break;
+		case 3:
+			display.page = new MainPage();
+			break;
+		case 4: 
+			display.go = false;
+			break;
+		default:
+			System.out.println("Sorry that is not an option");
+		}
+	}
+}
+
+class AddNewHomePage extends Page{
+	public void Action(Display display){
+		int houseID = 0;
+		String name;
+		String address;
+		String phoneNumber;
+		int yearBuilt = 0;
+		String category;
+		double price = 0;
+		System.out.print("Enter house name:  ");
+		name = input.nextLine();
+		System.out.print("Enter house Address (Format- [house number] [street name] [City name],[State full name] [zip code]):   ");
+		address = input.nextLine();
+		System.out.print("Enter phone number: ");
+		phoneNumber = input.nextLine();
+		
+		boolean added  = false;
+		while(!added){
+			try{
+				System.out.print("Enter year built:  ");
+				yearBuilt = input.nextInt();
+				input.nextLine();
+				added = true;
+			}
+			catch(Exception e){
+				errors.IntegerError();
+				input.nextLine();
+			}
+		}
+		
+		System.out.print("Enter a house category: ");
+		category = input.nextLine();
+		
+		added  = false;
+		while(!added){
+			try{
+				System.out.print("Enter price per day: ");
+				price = input.nextDouble();
+				input.nextLine();
+				added = true;
+			}
+			catch(Exception e){
+				errors.DoubleError();
+				input.nextLine();
+			}
+		}
+		
+		try{
+			Connector conn = new Connector();
+			ResultSet rs = conn.stmt.executeQuery("Select count(*) from Temporary_Housing;");
+			rs.next();
+			houseID = rs.getInt(1);
+			rs.close();
+			String sql = "INSERT INTO Temporary_Housing VALUES(?,?,?,?,?,?,?,?)";
+			PreparedStatement pstmt = conn.con.prepareStatement(sql);
+
+			pstmt.clearParameters();
+			pstmt.setInt(1,houseID);
+			pstmt.setString(2,name);
+			pstmt.setString(3,address);
+			pstmt.setString(4,"");
+			pstmt.setString(5,phoneNumber);
+			pstmt.setInt(6,yearBuilt);
+			pstmt.setString(7,category);
+			pstmt.setDouble(8,price);
+
+			pstmt.executeUpdate();
+			
+			sql = "INSERT INTO Home_Ownership VALUES(?,?)";
+			pstmt = conn.con.prepareStatement(sql);
+			pstmt.clearParameters();
+			pstmt.setInt(1,houseID);
+			pstmt.setString(2,user);
+			pstmt.executeUpdate();
+			conn.closeConnection();
+		}
+		catch(Exception e){
+			e.printStackTrace();
+		}
+		System.out.println("Home added, please use the update home option to add dates and keywords");
+		display.page = new NewTHPage();
+		
+	}
+	
+}
+
+class UpdateHomePage extends Page{
+	public void Action(Display display){
+		Set<Integer> ownedHomes = new HashSet<Integer>();
+
+		try{
+			Connector conn = new Connector();
+			ResultSet rs=conn.stmt.executeQuery("select th.house_id, th.name, th.address from Temporary_Housing th, Home_Ownership ho where " +
+					"ho.username = '"+ user + "' and ho.house_id = th.house_id");
+			 ResultSetMetaData rsmd = rs.getMetaData();
+	  		 int numCols = rsmd.getColumnCount();
+	  		 while (rs.next())
+	  		 {
+	  			 //System.out.print("cname:");
+	  			 ownedHomes.add(rs.getInt(1));
+	  			 for (int i=1; i<=numCols;i++)
+	  				 System.out.print(rs.getString(i)+"  ");
+	  			 System.out.println("");
+	  		 }
+	  		 
+	  		rs.close();
+			conn.closeConnection();
+		}
+		
+		catch(Exception e){
+			e.printStackTrace();
+		}
+		
+		int choice = -2;
+		do{
+			try{
+				System.out.print("Please enter number coorisponding to one of your homes id (enter -1 to cancel):  ");
+				choice = input.nextInt();
+				input.nextLine();
+			}
+			
+			catch(Exception e){
+				errors.IntegerError();
+				input.nextLine();
+			}
+		}while(choice != -1 && !ownedHomes.contains(choice));
+		
+		if(choice == -1){
+			display.page = new NewTHPage();
+			return;
+		}
+		
+		int home = choice;
+		
+		while(true){
+			try{
+				System.out.println("1. Add Dates");
+				System.out.println("2. Add KeyWords");
+				System.out.println("3. Go Back");
+				System.out.println("4. Quit");
+				choice = input.nextInt();
+				input.nextLine();
+				if(choice >= 1 && choice <= 4)
+					break;
+			}
+			catch(Exception e){
+				errors.IntegerError();
+				input.nextLine();
+			}
+		}
+		
+		switch(choice){
+		case 1:
+			break;
+		case 2:
+			System.out.print("Please enter in new home keywords with a space between each new keyword:  ");
+			String[] words = input.nextLine().split("[ ]+");
+			String sql = "INSERT INTO Keywords VALUES(?,?)";
+			
+			try{
+				Connector conn = new Connector();
+				ResultSet rs = null;
+				PreparedStatement pstmt = conn.con.prepareStatement(sql);
+				
+				for(int i = 0; i < words.length; i++){
+					String name = words[i];
+					rs=conn.stmt.executeQuery("Select keyword from Keywords where Keywords.keyword = '"+name+"' AND Keywords.house_id = "
+					+ Integer.toString(home)+";");
+					if(rs.next())
+						System.out.println(name + "already exists so it was ignored");
+					else{
+						pstmt.clearParameters();
+						pstmt.setInt(1,home);
+						pstmt.setString(2,name);
+						pstmt.executeUpdate();
+					}
+
+				}
+				
+				rs.close();
+				conn.closeConnection();
+
+
+			}
+			catch(Exception e){
+				e.printStackTrace();
+			}
+			
+			System.out.println("\nWould you like to update another home?");
+			break;
+		case 3:
+			display.page = new NewTHPage();
+			break;
+		case 4:
+			display.go = false;
+		}
+		
+		
+
 	}
 }
 
