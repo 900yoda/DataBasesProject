@@ -1103,7 +1103,37 @@ class UseFulFeedBackPage extends Page{
 
 class THSuggestionPage extends Page{
         public void Action(Display display){
-
+        	try{
+        		Connector conn = new Connector();
+        		conn.stmt.executeUpdate("create temporary table my " 
+        				+ "select distinct(m.house_id) as house_id "
+        				+ "from Reservations m "
+        				+ "where m.username = '"+user+"'; ");
+					
+        		conn.stmt.executeUpdate("create temporary table other "
+        		+ "select distinct(o.username) as username "
+        		+ "from Reservations o, my "
+        		+ "where o.house_id = my.house_id and o.username <> '"+user+"'; ");
+					
+        		String sql =  "select r.house_id, count(*) "
+        		+ "from other o, Reservations r "
+        		+ "where r.username = o.username "
+				+ "group by r.house_id "
+				+ "having r.house_id not in (select house_id from my) and "
+				+ "r.house_id not in (select th.house_id from Home_Ownership th where username = '"+user+"'); ";
+					
+        		ResultSet rs=conn.stmt.executeQuery(sql);
+        		System.out.println("\n---Suggestions---");
+        		while(rs.next()){
+        			System.out.println("house_id:"+ rs.getString(1)+" visits:"+rs.getString(2));
+        		}
+        		conn.stmt.executeUpdate("drop temporary table my; ");
+        		conn.stmt.executeUpdate("drop temporary table other; ");
+        		display.page = new MainPage();
+        	}
+        	catch(Exception e){
+        		e.printStackTrace();
+        	}
         }
 }
 
