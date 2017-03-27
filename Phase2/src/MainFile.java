@@ -165,7 +165,8 @@ class CreateNewAccountPage extends Page{
                 firstName = input.nextLine();
                 System.out.print("Last Name:   ");
                 lastName = input.nextLine();
-                System.out.print("Address (Format- [house number] [street name] [City name],[State full name] [zip code]):   ");
+                System.out.println("Notes: enter state/city full names with no spaces (ex:newyorkcity)");
+                System.out.print("Address ():   ");
                 address = input.nextLine();
                 System.out.print("Phone Number:   ");
                 phoneNumber = input.nextLine();
@@ -371,7 +372,8 @@ class AddNewHomePage extends Page{
                 double price = 0;
                 System.out.print("Enter house name:  ");
                 name = input.nextLine();
-                System.out.print("Enter house Address (Format- [house number] [street name] [City name],[State full name] [zip code]):   ");
+                System.out.println("Notes: enter state/city full names with no spaces (ex:newyorkcity)");
+                System.out.print("Enter house Address ");
                 address = input.nextLine();
                 System.out.print("Enter phone number: ");
                 phoneNumber = input.nextLine();
@@ -1091,7 +1093,122 @@ class TrustPage extends Page{
 
 class THBrowsingPage extends Page{
         public void Action(Display display){
-
+        	System.out.println("Please enter query below");
+        	System.out.print("Useable words: price, state, city, keyword, category, ");
+        	System.out.println("sort by, feedback-score, trusted-feedback-score, and, or");
+        	System.out.println("Useable symbols: <, >, =");
+        	System.out.println("Notes: enter state/city full names with no spaces (ex:newyorkcity)");
+        	System.out.println("Note: put variable names then value (ex: state = Texas)");
+        	String[] whites = input.nextLine().split("((?<=<)|(?=<)|(?<=>)|(?=>)|(?<==)|(?==)|(?<= )|(?= ))");
+        	ArrayList<String> commands = new ArrayList<String>();
+        	for(int i = 0; i < whites.length; i++){
+        		if(!whites[i].equals(" ")){
+        			commands.add(whites[i]);
+        		}
+        			
+        	}
+        	
+        	String select = "select th.house_id, th.name, th.address, th.phone_number,"
+        			+ " th.year_built, th.category, th.price";
+        	String from	 = " from Home_Ownership ho, ";
+        	String th = "Temporary_Housing th";
+        	String where = " where (ho.house_id = th.house_id and ho.username <> '"+user+"')";
+        	String more = "";
+			String groupBy = " group by th.house_id";
+        	
+        	
+        	
+        	boolean moreAdded = false;
+        	int keywordsAdded = 0;
+        	
+        	for(int i = 0; i < commands.size(); i++){
+        		String command = commands.get(i).toLowerCase();
+        		if(command.equals("<") || command.equals(">") || command.equals("=") || 
+        				command.equals("and") || command.equals("or")){
+        			more += " "+command;
+        		}
+        		
+        		else if(command.equals("price")){
+        			if(moreAdded)
+        				more+= " th.price";
+        			else{
+        				moreAdded = true;
+        				more = " and (th.price";
+        			}
+        		}
+        		
+        		else if(command.equals("keyword")){
+        			String word = " k"+ Integer.toString(keywordsAdded++);
+        			from += " Keywords"+word+",";
+        			where += "and ("+word+".house_id = th.house_id)";
+        			if(moreAdded)
+        				more+= word+".keyword";
+        			else{
+        				moreAdded = true;
+        				more = " and ("+ word+".keyword";
+        			}
+        		}
+        		else if (command.equals("category")){
+        			if(moreAdded)
+        				more+= " th.category";
+        			else{
+        				moreAdded = true;
+        				more = " and (th.category";
+        			}
+        		}
+        		else if(command.equals("state")||command.equals("city")){
+        			if(moreAdded)
+        				more+= " LOWER(th.address) LIKE '%" +commands.get(i+2).toLowerCase()+"%'";
+        			else{
+        				moreAdded = true;
+        				more = " and (LOWER(th.address) LIKE '%" +commands.get(i+2).toLowerCase()+"%'";
+        			}
+        			i+=2;
+        		}
+        		
+        		else if(command.equals("sort")){
+        			String word = commands.get(i+2).toLowerCase();
+        			i+=2;
+        			if(word.equals("price")){
+        				groupBy += " order by th.price DESC";
+        			}
+        			if(word.equals("feedback-score")){
+        				
+        			}
+        		}
+        		
+        		else{
+        			if(moreAdded)
+        				more+= " '" + command + "'";
+        			else{
+        				moreAdded = true;
+        				more = " and ('" + command + "'";
+        			}
+        		}
+        	}
+        	
+        	
+        	
+        	try{
+        		Connector conn = new Connector();
+        			
+        		if(moreAdded)
+        			more += ")";
+        		ResultSet rs=conn.stmt.executeQuery(select+from+th+where+more+groupBy);
+        		int col = rs.getMetaData().getColumnCount();
+        		while(rs.next()){
+        			for(int i = 1; i <= col; i++)
+        				System.out.print(rs.getString(i)+ " ");
+        			System.out.println();
+        		}
+        		rs.close();
+        		conn.closeConnection();
+        	}
+        	catch(Exception e){
+        		e.printStackTrace();
+        	}
+        	
+        	display.page = new MainPage();
         }
 }
 
