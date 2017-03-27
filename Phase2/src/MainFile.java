@@ -6,6 +6,7 @@ package src;
 import java.sql.*;
 import java.util.*;
 import java.text.*;
+import java.lang.*;
 
 
 class Display{
@@ -454,8 +455,11 @@ class UpdateHomePage extends Page{
 			ResultSet rs=conn.stmt.executeQuery("select th.house_id, th.name, th.address from Temporary_Housing th, Home_Ownership ho where " +
 					"ho.username = '"+ user + "' and ho.house_id = th.house_id");
 			 ResultSetMetaData rsmd = rs.getMetaData();
-	  		 int numCols = rsmd.getColumnCount();
-	  		 ownedHomes = new int[numCols];
+			 
+			 ResultSet rowCount = conn.stmt.executeQuery(" select count(*) from (select th.house_id, th.name, th.address from Temporary_Housing th, Home_Ownership ho where " +
+						"ho.username = '"+ user + "' and ho.house_id = th.house_id)");
+			 rowCount.next();
+	  		 ownedHomes = new int[rowCount.getInt(1)];
 	  		 System.out.println();
 	  		 int index = 0;
 	  		 while (rs.next())
@@ -463,7 +467,7 @@ class UpdateHomePage extends Page{
 	  			 //System.out.print("cname:"); 
 	  			 ownedHomes[index++] = rs.getInt(1);
 	  			System.out.print(index+ ": ");
-	  			 for (int i=2; i<=numCols;i++)
+	  			 for (int i=2; i<=3;i++)
 	  				 System.out.print(rs.getString(i)+"  ");
 	  			 System.out.println("");
 	  		 }
@@ -755,7 +759,7 @@ class UpdateHomePage extends Page{
 		try{
 			Connector conn = new Connector();
 			System.out.println("\n---Current Key Words---");
-			ResultSet rs=conn.stmt.executeQuery("Select keyword from Keywords where Keywords.house_id = "+ Integer.toString(home)+";");
+			ResultSet rs=conn.stmt.executeQuery("select keyword from Keywords where Keywords.house_id = "+ Integer.toString(home)+";");
 			while(rs.next()){
 				String word = rs.getString(1);
 				words.add(word);
@@ -805,7 +809,199 @@ class StaysPage extends Page{
 
 class FavoriteTHPage extends Page{
 	public void Action(Display display){
-		
+		boolean go = true;
+		int choice = -1;
+		while(go){
+			do{	
+				try{	
+					System.out.println("\n1. Add Favorite TH");
+					System.out.println("2. Remove Favorite TH");
+					System.out.println("3. View Favorite TH");
+					System.out.println("4. Go Back");
+					System.out.println("5. Quit");
+					System.out.print("Please select a coorisponding number:  ");
+					choice = input.nextInt();
+					input.nextLine();
+				}
+				catch(Exception e){
+					errors.IntegerError();
+					input.nextLine();
+				}
+			}while(choice < 1 || choice > 5);
+			
+			switch(choice){
+			case 1:
+				try{
+					Set<Integer> houses = ViewFavoritesSet();
+					ArrayList<Integer> visited = GiveHouses();
+					
+					int favorite = -1;
+					while(true){
+						System.out.println("Add a favorite coorisponding with a number (-1 to cancel):  ");
+						favorite = input.nextInt();
+						if((favorite >= 1 && favorite <= visited.size()) || favorite == -1)
+							break;
+					}
+					
+					if(favorite == -1){
+						
+					}
+						
+					if(houses.contains(visited.get(favorite-1)))
+						System.out.println("That is already a favorite");
+					else{
+						Connector conn = new Connector();
+						String sql = "insert into Favorite values(?,?);";
+						PreparedStatement pstmt = conn.con.prepareStatement(sql);
+						pstmt.setString(1, user);
+						pstmt.setInt(2, visited.get(favorite-1));
+						pstmt.executeUpdate();
+						conn.closeConnection();
+					}
+					
+				}
+				
+				catch(IllegalArgumentException e){
+					errors.IntegerError();
+					input.nextLine();
+				}
+				catch(Exception e){
+					e.printStackTrace();
+				}
+				break;
+			case 2:
+				try{
+					ArrayList<Integer> houses = ViewFavorites();
+					
+					int favorite = -1;
+					while(true){
+						System.out.println("Remove a favorite coorisponding with a number (-1 to cancel):  ");
+						favorite = input.nextInt();
+						if((favorite >= 1 && favorite <= houses.size()) || favorite == -1)
+							break;
+					}
+					
+					if(favorite == -1){
+						
+					}
+						
+					else{
+						Connector conn = new Connector();
+						String sql = "delete from Favorite where username = ? and house_id = ?";
+						PreparedStatement pstmt = conn.con.prepareStatement(sql);
+						pstmt.setString(1, user);
+						pstmt.setInt(2, houses.get(favorite-1));
+						pstmt.executeUpdate();
+						conn.closeConnection();
+					}
+					
+				}
+				
+				catch(IllegalArgumentException e){
+					errors.IntegerError();
+					input.nextLine();
+				}
+				catch(Exception e){
+					e.printStackTrace();
+				}
+				break;
+			case 3:
+				ViewFavorites();
+				break;
+			case 4:
+				display.page = new MainPage();
+				go = false;
+				break;
+			case 5:
+				display.go = false;
+				go = false;
+				break;
+			}
+		}
+	}
+	
+	private ArrayList<Integer> GiveHouses(){
+		ArrayList <Integer> houses = new ArrayList<Integer>();
+		try{
+			Connector conn = new Connector();
+			String sql = "select t.house_id, t.name, t.address "
+					+ "from Temporary_Housing t, (select distinct(r.house_id) as house_id "
+					+ 							"from Reservations r "
+					+ 							"where username = ?) as rh "
+					+ "where rh.house_id = t.house_id";
+			PreparedStatement pstmt = conn.con.prepareStatement(sql);
+			pstmt.setString(1, user);
+			ResultSet rs =  pstmt.executeQuery();
+			System.out.println("\n---Houses Reserved/Visited---");
+			int number = 1;
+			while(rs.next()){
+				houses.add(rs.getInt(1));
+				System.out.println(number + ": " + rs.getString(2) + " " + rs.getString(3));
+				number++;
+			}
+			rs.close();
+			conn.closeConnection();
+		}
+		catch(Exception e){
+			e.printStackTrace();
+		}
+		return houses;
+	}
+	
+	private ArrayList<Integer> ViewFavorites(){
+		ArrayList<Integer> houses = new ArrayList<Integer>();
+		try{
+			Connector conn = new Connector();
+			String sql = "select t.house_id, t.name, t.address "
+					+ "from Temporary_Housing t, (select distinct(f.house_id) as house "
+					+                            "from Favorite f "
+					+ 							"where f.username = ?) as fh "
+					+ "where fh.house = t.house_id;";
+			PreparedStatement pstmt = conn.con.prepareStatement(sql);
+			pstmt.setString(1, user);
+			ResultSet rs =  pstmt.executeQuery();
+			System.out.println("\n---Favorite Houses---");
+			int number = 1;
+			while(rs.next()){
+				houses.add(rs.getInt(1));
+				System.out.println(number+ ": " + rs.getString(2) + " " + rs.getString(3));
+				number++;
+			}
+			rs.close();
+			conn.closeConnection();
+		}
+		catch(Exception e){
+			e.printStackTrace();
+		}
+		return houses;
+	}
+	
+	private Set<Integer> ViewFavoritesSet(){
+		Set<Integer> houses = new HashSet<Integer>();
+		try{
+			Connector conn = new Connector();
+			String sql = "select t.house_id, t.name, t.address "
+					+ "from Temporary_Housing t, (select distinct(f.house_id) as house "
+					+                            "from Favorite f "
+					+ 							"where f.username = ?) as fh "
+					+ "where fh.house = t.house_id;";
+			PreparedStatement pstmt = conn.con.prepareStatement(sql);
+			pstmt.setString(1, user);
+			ResultSet rs =  pstmt.executeQuery();
+			System.out.println("\n---Favorite Houses---");
+			int number = 1;
+			while(rs.next()){
+				houses.add(rs.getInt(1));
+				System.out.println(number+ ": " + rs.getString(2) + " " + rs.getString(3));
+				number++;
+			}
+			rs.close();
+			conn.closeConnection();
+		}
+		catch(Exception e){
+			e.printStackTrace();
+		}
+		return houses;
 	}
 }
 
